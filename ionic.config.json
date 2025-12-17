@@ -1,0 +1,7 @@
+{
+  "name": "celionic",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react-vite"
+}
