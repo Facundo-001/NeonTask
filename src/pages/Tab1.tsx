@@ -152,11 +152,16 @@ const Tab1: React.FC = () => {
 
           {modo === 'recordatorio' ? (
             <IonItem className="neon-item">
+              <IonLabel position="stacked" style={{ color: '#90e0ef', marginBottom: '8px' }}>
+                Selecciona fecha y hora
+              </IonLabel>
               <IonDatetime
-                displayFormat="DD MMM YYYY - HH:mm"
-                placeholder="Selecciona fecha y hora"
+                presentation="date-time"
+                locale="es-ES"
                 value={fechaHora}
                 onIonChange={(e) => setFechaHora(e.detail.value as string)}
+                preferWheel={true}
+                style={{ '--padding-start': '12px', '--padding-end': '12px' }}
               />
             </IonItem>
           ) : (
