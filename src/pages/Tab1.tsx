@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar,
   IonSegment, IonSegmentButton, IonLabel, IonIcon, IonInput,
@@ -38,8 +38,44 @@ const Tab1: React.FC = () => {
     });
   };
 
+  // --- NUEVAS FUNCIONES DE CONFIGURACIÓN DE NOTIFICACIONES ---
+
+  const setupNotificationChannel = async () => {
+    // Crea el canal de Android. Esto solo se ejecuta una vez por instalación.
+    await LocalNotifications.createChannel({
+      id: 'neon-focus-notifications',
+      name: 'Alertas de Neon Focus',
+      description: 'Canal para recordatorios y temporizadores',
+      importance: 5, // Importancia máxima (sonido, vibración)
+      visibility: 1,
+      sound: 'default'
+    });
+  };
+
+  const checkAndRequestPermissions = async () => {
+    // Pide permisos al cargar la pestaña por si acaso
+    let permStatus = await LocalNotifications.checkPermissions();
+
+    if (permStatus.display !== 'granted') {
+      permStatus = await LocalNotifications.requestPermissions();
+    }
+    
+    // Si aún no se conceden, mostramos un mensaje, aunque la lógica de crearTarea también lo pide.
+    if (permStatus.display !== 'granted') {
+      mostrarToast('Permisos de notificación no concedidos. Las alertas no funcionarán.');
+    }
+  };
+
+  useEffect(() => {
+    // Llama a estas funciones al montar el componente
+    setupNotificationChannel();
+    checkAndRequestPermissions();
+  }, []);
+
+  // --- FIN DE NUEVAS FUNCIONES ---
+
   const abrirModalDatetime = () => {
-    setFechaHoraTemp(fechaHora || new Date().toISOString()); // Abre con la fecha actual o seleccionada
+    setFechaHoraTemp(fechaHora || new Date().toISOString());
     setShowDatetimeModal(true);
   };
 
@@ -83,9 +119,11 @@ const Tab1: React.FC = () => {
     tareas.push(nuevaTarea);
     await Preferences.set({ key: 'tareas', value: JSON.stringify(tareas) });
 
-    await LocalNotifications.requestPermissions();
+    // Ya no es necesario llamar a requestPermissions aquí si se hace en useEffect, 
+    // pero si lo dejas tampoco pasa nada, solo es redundante.
+    // await LocalNotifications.requestPermissions();
 
-    // NOTIFICACIÓN PARA RECORDATORIO
+    // NOTIFICACIÓN PARA RECORDATORIO (MODIFICADA)
     if (modo === 'recordatorio' && nuevaTarea.fechaHora) {
       const timestamp = new Date(nuevaTarea.fechaHora).getTime();
       if (timestamp > Date.now()) {
@@ -94,14 +132,18 @@ const Tab1: React.FC = () => {
             id: nuevaTarea.id,
             title: '🔔 Neon Focus - Recordatorio',
             body: nuevaTarea.titulo,
-            schedule: { at: new Date(timestamp) },
+            channelId: 'neon-focus-notifications', // <-- AÑADIDO
+            schedule: { 
+                at: new Date(timestamp),
+                allowWhileIdle: true // <-- AÑADIDO para Android 12+
+            },
             sound: 'default'
           }]
         });
       }
     }
 
-    // NOTIFICACIÓN PARA TEMPORIZADOR
+    // NOTIFICACIÓN PARA TEMPORIZADOR (MODIFICADA)
     if (modo === 'temporizador' && nuevaTarea.minutos) {
       const segundosTotal = nuevaTarea.minutos * 60;
       const finalTimestamp = Date.now() + segundosTotal * 1000;
@@ -110,7 +152,11 @@ const Tab1: React.FC = () => {
           id: nuevaTarea.id + 100000,
           title: '⏰ Neon Focus - Temporizador terminado',
           body: `"${nuevaTarea.titulo}" ha finalizado`,
-          schedule: { at: new Date(finalTimestamp) },
+          channelId: 'neon-focus-notifications', // <-- AÑADIDO
+          schedule: { 
+            at: new Date(finalTimestamp),
+            allowWhileIdle: true // <-- AÑADIDO para Android 12+
+        },
           sound: 'default'
         }]
       });
