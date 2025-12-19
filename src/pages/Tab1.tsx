@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar,
   IonSegment, IonSegmentButton, IonLabel, IonIcon, IonInput,
@@ -22,8 +22,8 @@ interface Tarea {
 const Tab1: React.FC = () => {
   const [modo, setModo] = useState<'recordatorio' | 'temporizador'>('recordatorio');
   const [titulo, setTitulo] = useState('');
-  const [fechaHoraTemp, setFechaHoraTemp] = useState(''); // Valor temporal en el modal
-  const [fechaHora, setFechaHora] = useState(''); // Valor confirmado
+  const [fechaHoraTemp, setFechaHoraTemp] = useState('');
+  const [fechaHora, setFechaHora] = useState('');
   const [minutos, setMinutos] = useState('');
   const [present] = useIonToast();
   const history = useHistory();
@@ -38,42 +38,6 @@ const Tab1: React.FC = () => {
     });
   };
 
-  // --- NUEVAS FUNCIONES DE CONFIGURACIÓN DE NOTIFICACIONES ---
-
-  const setupNotificationChannel = async () => {
-    // Crea el canal de Android. Esto solo se ejecuta una vez por instalación.
-    await LocalNotifications.createChannel({
-      id: 'neon-focus-notifications',
-      name: 'Alertas de Neon Focus',
-      description: 'Canal para recordatorios y temporizadores',
-      importance: 5, // Importancia máxima (sonido, vibración)
-      visibility: 1,
-      sound: 'default'
-    });
-  };
-
-  const checkAndRequestPermissions = async () => {
-    // Pide permisos al cargar la pestaña por si acaso
-    let permStatus = await LocalNotifications.checkPermissions();
-
-    if (permStatus.display !== 'granted') {
-      permStatus = await LocalNotifications.requestPermissions();
-    }
-    
-    // Si aún no se conceden, mostramos un mensaje, aunque la lógica de crearTarea también lo pide.
-    if (permStatus.display !== 'granted') {
-      mostrarToast('Permisos de notificación no concedidos. Las alertas no funcionarán.');
-    }
-  };
-
-  useEffect(() => {
-    // Llama a estas funciones al montar el componente
-    setupNotificationChannel();
-    checkAndRequestPermissions();
-  }, []);
-
-  // --- FIN DE NUEVAS FUNCIONES ---
-
   const abrirModalDatetime = () => {
     setFechaHoraTemp(fechaHora || new Date().toISOString());
     setShowDatetimeModal(true);
@@ -86,6 +50,17 @@ const Tab1: React.FC = () => {
 
   const cancelarFechaHora = () => {
     setShowDatetimeModal(false);
+  };
+
+  const crearChannelAltaPrioridad = async () => {
+    await LocalNotifications.createChannel({
+      id: 'neon-high',
+      name: 'Neon Focus Alta Prioridad',
+      importance: 5,
+      sound: 'default',
+      visibility: 1,
+      vibration: true
+    });
   };
 
   const crearTarea = async () => {
@@ -119,45 +94,38 @@ const Tab1: React.FC = () => {
     tareas.push(nuevaTarea);
     await Preferences.set({ key: 'tareas', value: JSON.stringify(tareas) });
 
-    // Ya no es necesario llamar a requestPermissions aquí si se hace en useEffect, 
-    // pero si lo dejas tampoco pasa nada, solo es redundante.
-    // await LocalNotifications.requestPermissions();
+    await LocalNotifications.requestPermissions();
+    await crearChannelAltaPrioridad();
 
-    // NOTIFICACIÓN PARA RECORDATORIO (MODIFICADA)
+    // NOTIFICACIÓN PARA RECORDATORIO
     if (modo === 'recordatorio' && nuevaTarea.fechaHora) {
       const timestamp = new Date(nuevaTarea.fechaHora).getTime();
       if (timestamp > Date.now()) {
         await LocalNotifications.schedule({
           notifications: [{
             id: nuevaTarea.id,
-            title: '🔔 Neon Focus - Recordatorio',
+            title: '🔔 Recordatorio',
             body: nuevaTarea.titulo,
-            channelId: 'neon-focus-notifications', // <-- AÑADIDO
-            schedule: { 
-                at: new Date(timestamp),
-                allowWhileIdle: true // <-- AÑADIDO para Android 12+
-            },
-            sound: 'default'
+            schedule: { at: new Date(timestamp) },
+            sound: 'default',
+            channelId: 'neon-high'
           }]
         });
       }
     }
 
-    // NOTIFICACIÓN PARA TEMPORIZADOR (MODIFICADA)
+    // NOTIFICACIÓN PARA TEMPORIZADOR
     if (modo === 'temporizador' && nuevaTarea.minutos) {
       const segundosTotal = nuevaTarea.minutos * 60;
       const finalTimestamp = Date.now() + segundosTotal * 1000;
       await LocalNotifications.schedule({
         notifications: [{
           id: nuevaTarea.id + 100000,
-          title: '⏰ Neon Focus - Temporizador terminado',
-          body: `"${nuevaTarea.titulo}" ha finalizado`,
-          channelId: 'neon-focus-notifications', // <-- AÑADIDO
-          schedule: { 
-            at: new Date(finalTimestamp),
-            allowWhileIdle: true // <-- AÑADIDO para Android 12+
-        },
-          sound: 'default'
+          title: '⏰ Temporizador terminado',
+          body: nuevaTarea.titulo,
+          schedule: { at: new Date(finalTimestamp) },
+          sound: 'default',
+          channelId: 'neon-high'
         }]
       });
     }
@@ -171,12 +139,13 @@ const Tab1: React.FC = () => {
       await Preferences.set({ key: 'pomodoroStart', value: 'true' });
       history.push('/tab2');
     } else {
-      mostrarToast('Tarea creada con notificación');
+      mostrarToast('Tarea creada');
       history.push('/tab3');
     }
   };
 
   return (
+    // ... el return es el mismo que tenías, con el modal bonito ...
     <IonPage>
       <IonHeader>
         <IonToolbar color="primary">
@@ -245,7 +214,6 @@ const Tab1: React.FC = () => {
           </IonButton>
         </div>
 
-        {/* Modal con botón Aceptar */}
         <IonModal isOpen={showDatetimeModal} onDidDismiss={cancelarFechaHora} className="datetime-modal">
           <IonHeader>
             <IonToolbar color="primary">
