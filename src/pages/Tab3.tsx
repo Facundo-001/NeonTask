@@ -40,25 +40,26 @@ const Tab3: React.FC = () => {
     cargarTareas();
   }, []);
 
-      // Crea el channel al cargar la tab
-    crearChannelAltaPrioridad();
-  }, []);
-
-  const crearChannelAltaPrioridad = async () => {
-    await LocalNotifications.createChannel({
-      id: 'neon-high',
-      name: 'Neon Focus Alta Prioridad',
-      importance: 5,
-      sound: 'default',
-      visibility: 1,
-      lights: true,
-      vibration: true
-    });
-  };
-
   useIonViewWillEnter(() => {
     cargarTareas();
   });
+
+  // CORREGIDO: channel se crea correctamente en useEffect
+  useEffect(() => {
+    const crearChannelAltaPrioridad = async () => {
+      await LocalNotifications.createChannel({
+        id: 'neon-high',
+        name: 'Neon Focus Alta Prioridad',
+        importance: 5,
+        sound: 'default',
+        visibility: 1,
+        lights: true,
+        vibration: true
+      });
+    };
+
+    crearChannelAltaPrioridad();
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
