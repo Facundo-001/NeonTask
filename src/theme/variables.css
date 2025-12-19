@@ -69,3 +69,13 @@ body {
     font-size: 1.1rem;
     border-radius: 16px;
 }
+
+.datetime-modal {
+    --height: 70%;
+    --border-radius: 16px 16px 0 0;
+    --box-shadow: 0 -10px 30px rgba(0, 180, 216, 0.3);
+}
+
+.datetime-modal .ion-content {
+    --background: var(--ion-background-color);
+}

@@ -6,6 +6,7 @@ import {
 import { play, pause, refresh } from 'ionicons/icons';
 import { Haptics } from '@capacitor/haptics';
 import { Preferences } from '@capacitor/preferences';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 const Tab2: React.FC = () => {
   const [minutes, setMinutes] = useState(25);
@@ -39,8 +40,16 @@ const Tab2: React.FC = () => {
       setMinutes(isBreak ? 25 : 5);
       setSeconds(0);
 
-      // Vibración al terminar
-      Haptics.vibrate();
+      // Vibración + notificación al terminar
+      Haptics.vibrate({ duration: 1000 });
+      LocalNotifications.schedule({
+        notifications: [{
+          id: Date.now(),
+          title: '⏰ Pomodoro terminado',
+          body: isBreak ? '¡Hora de descansar!' : '¡Hora de enfocarte!',
+          sound: 'default'
+        }]
+      });
     }
   }, [isRunning, minutes, seconds, isBreak]);
 
@@ -53,7 +62,6 @@ const Tab2: React.FC = () => {
     setSeconds(0);
   };
 
-  // ... el return es exactamente igual al que tenías ...
   return (
     <IonPage>
       <IonHeader>

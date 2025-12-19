@@ -2,9 +2,10 @@ import { useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar,
   IonSegment, IonSegmentButton, IonLabel, IonIcon, IonInput,
-  IonButton, IonDatetime, IonItem, IonText, useIonToast
+  IonButton, IonDatetime, IonItem, IonText, useIonToast, IonModal,
+  IonButtons, IonFooter
 } from '@ionic/react';
-import { alarmOutline, timerOutline, addOutline } from 'ionicons/icons';
+import { alarmOutline, timerOutline, addOutline, calendarOutline, checkmarkOutline, closeOutline } from 'ionicons/icons';
 import { useHistory } from 'react-router-dom';
 import { Preferences } from '@capacitor/preferences';
 import { LocalNotifications } from '@capacitor/local-notifications';
@@ -21,10 +22,12 @@ interface Tarea {
 const Tab1: React.FC = () => {
   const [modo, setModo] = useState<'recordatorio' | 'temporizador'>('recordatorio');
   const [titulo, setTitulo] = useState('');
-  const [fechaHora, setFechaHora] = useState('');
+  const [fechaHoraTemp, setFechaHoraTemp] = useState(''); // Valor temporal en el modal
+  const [fechaHora, setFechaHora] = useState(''); // Valor confirmado
   const [minutos, setMinutos] = useState('');
   const [present] = useIonToast();
   const history = useHistory();
+  const [showDatetimeModal, setShowDatetimeModal] = useState(false);
 
   const mostrarToast = (message: string) => {
     present({
@@ -33,6 +36,20 @@ const Tab1: React.FC = () => {
       color: 'primary',
       position: 'top'
     });
+  };
+
+  const abrirModalDatetime = () => {
+    setFechaHoraTemp(fechaHora || new Date().toISOString()); // Abre con la fecha actual o seleccionada
+    setShowDatetimeModal(true);
+  };
+
+  const confirmarFechaHora = () => {
+    setFechaHora(fechaHoraTemp);
+    setShowDatetimeModal(false);
+  };
+
+  const cancelarFechaHora = () => {
+    setShowDatetimeModal(false);
   };
 
   const crearTarea = async () => {
@@ -66,30 +83,39 @@ const Tab1: React.FC = () => {
     tareas.push(nuevaTarea);
     await Preferences.set({ key: 'tareas', value: JSON.stringify(tareas) });
 
-    // === NOTIFICACIÓN PARA RECORDATORIO ===
+    await LocalNotifications.requestPermissions();
+
+    // NOTIFICACIÓN PARA RECORDATORIO
     if (modo === 'recordatorio' && nuevaTarea.fechaHora) {
       const timestamp = new Date(nuevaTarea.fechaHora).getTime();
       if (timestamp > Date.now()) {
-        // Pedir permiso la primera vez
-        const perm = await LocalNotifications.requestPermissions();
-        if (perm.display === 'granted') {
-          await LocalNotifications.schedule({
-            notifications: [
-              {
-                id: nuevaTarea.id,
-                title: '🔔 Neon Focus',
-                body: nuevaTarea.titulo,
-                schedule: { at: new Date(timestamp) },
-                sound: 'default',
-                extra: { data: 'whatever' }
-              }
-            ]
-          });
-        }
+        await LocalNotifications.schedule({
+          notifications: [{
+            id: nuevaTarea.id,
+            title: '🔔 Neon Focus - Recordatorio',
+            body: nuevaTarea.titulo,
+            schedule: { at: new Date(timestamp) },
+            sound: 'default'
+          }]
+        });
       }
     }
 
-    // Limpiar campos
+    // NOTIFICACIÓN PARA TEMPORIZADOR
+    if (modo === 'temporizador' && nuevaTarea.minutos) {
+      const segundosTotal = nuevaTarea.minutos * 60;
+      const finalTimestamp = Date.now() + segundosTotal * 1000;
+      await LocalNotifications.schedule({
+        notifications: [{
+          id: nuevaTarea.id + 100000,
+          title: '⏰ Neon Focus - Temporizador terminado',
+          body: `"${nuevaTarea.titulo}" ha finalizado`,
+          schedule: { at: new Date(finalTimestamp) },
+          sound: 'default'
+        }]
+      });
+    }
+
     setTitulo('');
     setFechaHora('');
     setMinutos('');
@@ -99,14 +125,12 @@ const Tab1: React.FC = () => {
       await Preferences.set({ key: 'pomodoroStart', value: 'true' });
       history.push('/tab2');
     } else {
-      mostrarToast('Tarea creada');
+      mostrarToast('Tarea creada con notificación');
       history.push('/tab3');
     }
   };
 
   return (
-    // ... el return es exactamente igual al que tenías ...
-    // (no cambió nada del JSX)
     <IonPage>
       <IonHeader>
         <IonToolbar color="primary">
@@ -151,18 +175,12 @@ const Tab1: React.FC = () => {
           </IonItem>
 
           {modo === 'recordatorio' ? (
-            <IonItem className="neon-item">
-              <IonLabel position="stacked" style={{ color: '#90e0ef', marginBottom: '8px' }}>
-                Selecciona fecha y hora
-              </IonLabel>
-              <IonDatetime
-                presentation="date-time"
-                locale="es-ES"
-                value={fechaHora}
-                onIonChange={(e) => setFechaHora(e.detail.value as string)}
-                preferWheel={true}
-                style={{ '--padding-start': '12px', '--padding-end': '12px' }}
-              />
+            <IonItem className="neon-item" button onClick={abrirModalDatetime}>
+              <IonIcon icon={calendarOutline} slot="start" />
+              <IonLabel>Fecha y hora</IonLabel>
+              <IonText slot="end" color="medium">
+                {fechaHora ? new Date(fechaHora).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : 'Seleccionar'}
+              </IonText>
             </IonItem>
           ) : (
             <IonItem className="neon-item">
@@ -180,6 +198,40 @@ const Tab1: React.FC = () => {
             Crear
           </IonButton>
         </div>
+
+        {/* Modal con botón Aceptar */}
+        <IonModal isOpen={showDatetimeModal} onDidDismiss={cancelarFechaHora} className="datetime-modal">
+          <IonHeader>
+            <IonToolbar color="primary">
+              <IonTitle>Seleccionar fecha y hora</IonTitle>
+              <IonButtons slot="end">
+                <IonButton onClick={cancelarFechaHora}>
+                  <IonIcon icon={closeOutline} />
+                </IonButton>
+              </IonButtons>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent className="ion-padding">
+            <IonDatetime
+              presentation="date-time"
+              locale="es-ES"
+              value={fechaHoraTemp}
+              onIonChange={(e) => setFechaHoraTemp(e.detail.value as string)}
+              preferWheel={true}
+              hourCycle="h23"
+              min={new Date().toISOString()}
+              size="cover"
+            />
+          </IonContent>
+          <IonFooter>
+            <IonToolbar>
+              <IonButton expand="block" color="secondary" onClick={confirmarFechaHora}>
+                <IonIcon slot="start" icon={checkmarkOutline} />
+                Aceptar
+              </IonButton>
+            </IonToolbar>
+          </IonFooter>
+        </IonModal>
       </IonContent>
     </IonPage>
   );

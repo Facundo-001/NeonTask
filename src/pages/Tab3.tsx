@@ -14,7 +14,7 @@ interface Tarea {
   fechaHora?: string;
   minutos?: number;
   completada: boolean;
-  tiempoInicio?: number; // Nuevo: para calcular countdown
+  tiempoInicio?: number;
 }
 
 const Tab3: React.FC = () => {
@@ -24,7 +24,6 @@ const Tab3: React.FC = () => {
     const { value } = await Preferences.get({ key: 'tareas' });
     const tareasGuardadas: Tarea[] = value ? JSON.parse(value) : [];
 
-    // Si es temporizador y no tiene tiempoInicio, lo ponemos ahora
     const tareasActualizadas = tareasGuardadas.map(t => {
       if (t.tipo === 'temporizador' && !t.tiempoInicio && !t.completada) {
         return { ...t, tiempoInicio: Date.now() };
@@ -36,7 +35,6 @@ const Tab3: React.FC = () => {
     await Preferences.set({ key: 'tareas', value: JSON.stringify(tareasActualizadas) });
   };
 
-  // Carga inicial y cuando entras a la tab
   useEffect(() => {
     cargarTareas();
   }, []);
@@ -45,7 +43,6 @@ const Tab3: React.FC = () => {
     cargarTareas();
   });
 
-  // Actualiza countdown cada segundo
   useEffect(() => {
     const interval = setInterval(() => {
       setTareas(prev => {
@@ -56,14 +53,13 @@ const Tab3: React.FC = () => {
             const restantes = totalSegundos - transcurridoSegundos;
 
             if (restantes <= 0) {
-              return { ...t, completada: true }; // Marca como completada automáticamente
+              return { ...t, completada: true };
             }
             return t;
           }
           return t;
         });
 
-        // Guardamos solo si cambió algo
         if (JSON.stringify(prev) !== JSON.stringify(actualizadas)) {
           Preferences.set({ key: 'tareas', value: JSON.stringify(actualizadas) });
         }
@@ -90,7 +86,15 @@ const Tab3: React.FC = () => {
   const formatoTiempoRestante = (tarea: Tarea) => {
     if (tarea.tipo === 'recordatorio' && tarea.fechaHora) {
       const fecha = new Date(tarea.fechaHora);
-      return fecha.toLocaleString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      const ahora = new Date();
+      const diff = fecha.getTime() - ahora.getTime();
+      if (diff <= 0) return 'Vencido';
+
+      const horas = Math.floor(diff / (1000 * 60 * 60));
+      const minutos = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const tiempoAprox = horas > 0 ? `${horas}h ${minutos}min` : `${minutos}min`;
+
+      return `Faltan ${tiempoAprox} - ${fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
     }
 
     if (tarea.tipo === 'temporizador' && tarea.minutos && tarea.tiempoInicio && !tarea.completada) {
@@ -102,7 +106,12 @@ const Tab3: React.FC = () => {
 
       const min = Math.floor(restantes / 60);
       const seg = restantes % 60;
-      return `${min.toString().padStart(2, '0')}:${seg.toString().padStart(2, '0')}`;
+      const countdown = `${min.toString().padStart(2, '0')}:${seg.toString().padStart(2, '0')}`;
+
+      const final = new Date(Date.now() + restantes * 1000);
+      const horaFinal = final.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+      return `${countdown} - Termina aprox. ${horaFinal}`;
     }
 
     return tarea.minutos ? `${tarea.minutos} min` : '';
@@ -119,11 +128,19 @@ const Tab3: React.FC = () => {
         <div className="background-glow" />
         <IonList className="ion-padding">
           {tareas.length === 0 ? (
-            <IonText>
-              <p style={{ textAlign: 'center', marginTop: '80px', fontSize: '1.1rem', color: '#90e0ef' }}>
-                Sin tareas aún<br />¡Crea una en Recordatorios!
-              </p>
-            </IonText>
+            <div style={{
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'column',
+              opacity: 0.6
+            }}>
+              <IonText color="medium">
+                <h3>Sin tareas aún</h3>
+                <p>¡Crea una en Recordatorios!</p>
+              </IonText>
+            </div>
           ) : (
             tareas.map((tarea) => (
               <IonItemSliding key={tarea.id}>
@@ -140,7 +157,7 @@ const Tab3: React.FC = () => {
                     icon={
                       tarea.tipo === 'recordatorio' ? alarmOutline :
                       tarea.completada ? timerOutline :
-                      alertCircleOutline // Icono diferente si está corriendo
+                      alertCircleOutline
                     }
                     slot="start"
                     color={tarea.completada ? 'medium' : 'primary'}
