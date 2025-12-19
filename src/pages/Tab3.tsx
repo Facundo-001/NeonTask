@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar,
   IonList, IonItem, IonLabel, IonIcon, IonText, IonBadge,
-  IonItemSliding, IonItemOptions, IonItemOption, useIonViewWillEnter
+  IonItemSliding, IonItemOptions, IonItemOption, useIonViewWillEnter, IonButton
 } from '@ionic/react';
-import { alarmOutline, timerOutline, trashOutline, alertCircleOutline } from 'ionicons/icons';
+import { alarmOutline, timerOutline, trashOutline, alertCircleOutline, notificationsOutline } from 'ionicons/icons';
 import { Preferences } from '@capacitor/preferences';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 interface Tarea {
   id: number;
@@ -83,6 +84,30 @@ const Tab3: React.FC = () => {
     await Preferences.set({ key: 'tareas', value: JSON.stringify(nuevas) });
   };
 
+  const probarNotificacionTarea = async (tarea: Tarea) => {
+    await LocalNotifications.requestPermissions();
+
+    await LocalNotifications.createChannel({
+      id: 'neon-high',
+      name: 'Neon Focus Alta Prioridad',
+      importance: 5,
+      sound: 'default',
+      visibility: 1,
+      vibration: true
+    });
+
+    await LocalNotifications.schedule({
+      notifications: [{
+        id: tarea.id + 200000,
+        title: tarea.tipo === 'recordatorio' ? '🔔 Recordatorio de prueba' : '⏰ Temporizador de prueba',
+        body: tarea.titulo,
+        schedule: { at: new Date(Date.now() + 2000) },
+        sound: 'default',
+        channelId: 'neon-high'
+      }]
+    });
+  };
+
   const formatoTiempoRestante = (tarea: Tarea) => {
     if (tarea.tipo === 'recordatorio' && tarea.fechaHora) {
       const fecha = new Date(tarea.fechaHora);
@@ -146,8 +171,6 @@ const Tab3: React.FC = () => {
               <IonItemSliding key={tarea.id}>
                 <IonItem
                   className="neon-item"
-                  button
-                  onClick={() => toggleCompletada(tarea.id)}
                   style={{
                     opacity: tarea.completada ? 0.6 : 1,
                     textDecoration: tarea.completada ? 'line-through' : 'none'
@@ -162,7 +185,7 @@ const Tab3: React.FC = () => {
                     slot="start"
                     color={tarea.completada ? 'medium' : 'primary'}
                   />
-                  <IonLabel>
+                  <IonLabel onClick={() => toggleCompletada(tarea.id)}>
                     <h2 style={{ fontWeight: tarea.completada ? 'normal' : '500' }}>
                       {tarea.titulo}
                     </h2>
@@ -171,6 +194,9 @@ const Tab3: React.FC = () => {
                       {tarea.completada && tarea.tipo === 'temporizador' && ' - ¡Terminado!'}
                     </p>
                   </IonLabel>
+                  <IonButton slot="end" fill="clear" color="medium" onClick={() => probarNotificacionTarea(tarea)}>
+                    <IonIcon icon={notificationsOutline} />
+                  </IonButton>
                   {tarea.completada && <IonBadge color="secondary" slot="end">Listo</IonBadge>}
                 </IonItem>
                 <IonItemOptions side="end">
